@@ -107,6 +107,12 @@ public class GateActivity extends Activity {
             case 10:
                 s10();
                 break;
+            case 11:
+                s11();
+                break;
+            case 12:
+                s12();
+                break;
             default:
                 break;
         }
@@ -238,6 +244,34 @@ public class GateActivity extends Activity {
         handler.postDelayed(this::done, 20000);
     }
 
+    /** 倒计时结束但广告页还停在原地（带「广告」角标 + 解锁提示）：应当立刻滑走，而不是等片尾逻辑 */
+    private void s11() {
+        showPlaying();
+        handler.postDelayed(() -> {
+            Log.i(TAG, "s11 countdown then unlock prompt, still on ad page");
+            countdown(4, "第8集 | 3.0x");
+        }, 3000);
+        handler.postDelayed(() -> {
+            Log.i(TAG, "s11 ad page with badge + unlock prompt");
+            epView.setText("第8集 | 3.0x");
+            metaView.setText("广告");
+            hintView.setText("上滑继续观看短剧");
+        }, 7800);
+        handler.postDelayed(this::done, 20000);
+    }
+
+    /** 直播购物类推广页：没有倒计时、也没有「上滑」提示，只有直播特征文字 */
+    private void s12() {
+        showPlaying();
+        handler.postDelayed(() -> {
+            Log.i(TAG, "s12 live shopping promo page");
+            epView.setText("直播中");
+            metaView.setText("已售 128 件");
+            hintView.setText("进入直播间");
+        }, 3000);
+        handler.postDelayed(this::done, 18000);
+    }
+
     private void flicker(final int onMs, final int offMs) {
         if (scenario != 7 && scenario != 8) return;
         epView.setText("第9集 | 3.0x");
@@ -257,7 +291,12 @@ public class GateActivity extends Activity {
     }
 
     private void tickDown(final int left) {
-        if (left <= 0) return;
+        if (left <= 0) {
+            // 倒计时归零：真机上「N秒后…」的文案会立刻消失（换成解锁提示或直接回正片），
+            // 这里跟着清掉，否则残留的「1秒后…」会被当成还在读秒
+            hintView.setText("");
+            return;
+        }
         hintView.setText(left + "秒后可继续上滑观看短剧");
         handler.postDelayed(() -> tickDown(left - 1), 1000);
     }

@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private TextView heroMode;
     private TextView modeValue;
     private TextView adValue;
+    private TextView adLevelValue;
     private TextView bubbleValue;
     private TextView accessValue;
     private View accessDot;
@@ -300,6 +301,15 @@ public class MainActivity extends Activity {
             refreshRows();
         });
         addRow(box, adRow);
+
+        LinearLayout adLevelRight = new LinearLayout(this);
+        adLevelRight.setOrientation(LinearLayout.HORIZONTAL);
+        adLevelRight.setGravity(Gravity.CENTER_VERTICAL);
+        adLevelValue = monoText("标准", 13, INK);
+        adLevelRight.addView(adLevelValue, rightTextParams());
+        adLevelRight.addView(chevron(), leftMargin(dp(8)));
+        View adLevelRow = row("广告力度", "AD DEPTH", adLevelRight, v -> showAdLevelDialog());
+        addRow(box, adLevelRow);
 
         LinearLayout bubbleRight = new LinearLayout(this);
         bubbleRight.setOrientation(LinearLayout.HORIZONTAL);
@@ -603,6 +613,81 @@ public class MainActivity extends Activity {
         refreshRows();
     }
 
+    private void showAdLevelDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(22), dp(20), dp(22), dp(8));
+        box.setBackgroundColor(0xFF0A0A0A);
+
+        TextView title = new TextView(this);
+        title.setText("广告力度");
+        title.setTextSize(19);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTextColor(INK);
+        box.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("AD DEPTH / 判定激进程度");
+        sub.setTextSize(12);
+        sub.setTypeface(monoRegular);
+        sub.setTextColor(FAINT);
+        sub.setLetterSpacing(0.1f);
+        sub.setPadding(0, dp(6), 0, dp(16));
+        box.addView(sub);
+
+        String current = sp.getString(AutoScrollService.KEY_AD_LEVEL, AutoScrollService.AD_LEVEL_STD);
+        final AlertDialog[] holder = new AlertDialog[1];
+
+        LinearLayout segs = new LinearLayout(this);
+        segs.setOrientation(LinearLayout.HORIZONTAL);
+        segs.setClipToPadding(false);
+
+        View std = segment("标准", "文字证据", AutoScrollService.AD_LEVEL_STD.equals(current));
+        View strong = segment("强力", "空白页兜底", AutoScrollService.AD_LEVEL_STRONG.equals(current));
+        LinearLayout.LayoutParams segLp = new LinearLayout.LayoutParams(
+                0, dp(62), 1f);
+        segLp.rightMargin = dp(5);
+        segs.addView(std, segLp);
+        LinearLayout.LayoutParams segLp2 = new LinearLayout.LayoutParams(
+                0, dp(62), 1f);
+        segLp2.leftMargin = dp(5);
+        segs.addView(strong, segLp2);
+        box.addView(segs);
+
+        TextView foot = new TextView(this);
+        foot.setText("标准：认倒计时、广告角标、广告 SDK 控件、直播/游戏/推广卡，读完秒立刻上滑。\n"
+                + "强力：再加「整页读不到文字的广告画面」兜底，5 分钟最多兜底 4 次；"
+                + "无文字的正片有可能被误滑，介意就别开。");
+        foot.setTextSize(15);
+        foot.setTextColor(MUTED);
+        foot.setLineSpacing(dp(3), 1f);
+        foot.setPadding(0, dp(16), 0, dp(8));
+        box.addView(foot);
+
+        std.setOnClickListener(v -> {
+            setAdLevel(AutoScrollService.AD_LEVEL_STD);
+            if (holder[0] != null) holder[0].dismiss();
+        });
+        strong.setOnClickListener(v -> {
+            setAdLevel(AutoScrollService.AD_LEVEL_STRONG);
+            if (holder[0] != null) holder[0].dismiss();
+        });
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(box)
+                .setNegativeButton("取消", null)
+                .create();
+        holder[0] = dialog;
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) w.setBackgroundDrawable(new ColorDrawable(0xFF0A0A0A));
+    }
+
+    private void setAdLevel(String level) {
+        sp.edit().putString(AutoScrollService.KEY_AD_LEVEL, level).apply();
+        refreshRows();
+    }
+
     private void showIntervalDialog() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -882,6 +967,10 @@ public class MainActivity extends Activity {
         if (modeValue != null) modeValue.setText(smart ? "智能识别" : "定时上滑");
         if (adSwitch != null) adSwitch.setChecked(sp.getBoolean(AutoScrollService.KEY_AD, true));
         if (adValue != null) adValue.setText(adSwitch != null && adSwitch.isChecked() ? "自动跳过" : "不处理");
+        if (adLevelValue != null) {
+            String level = sp.getString(AutoScrollService.KEY_AD_LEVEL, AutoScrollService.AD_LEVEL_STD);
+            adLevelValue.setText(AutoScrollService.AD_LEVEL_STRONG.equals(level) ? "强力" : "标准");
+        }
         if (bubbleSwitch != null) bubbleSwitch.setChecked(sp.getBoolean(AutoScrollService.KEY_BUBBLE, true));
         if (bubbleValue != null) bubbleValue.setText(bubbleSwitch != null && bubbleSwitch.isChecked() ? "开" : "关");
         boolean enabled = isAccessibilityEnabled();
