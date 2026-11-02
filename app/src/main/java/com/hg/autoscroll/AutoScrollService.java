@@ -48,7 +48,7 @@ public class AutoScrollService extends AccessibilityService {
 
     private static final String TAG = "AutoScroll";
     // 「下一集」在红果的播放器控件/选集面板里常驻，会误触发，不能当片尾信号
-    private static final String[] END_KEYWORDS = {"本集完", "本集已完", "下一话", "上滑继续观看"};
+    private static final String[] END_KEYWORDS = {"本集完", "本集已完", "下一话", "上滑继续"};
     private static final String AD_MARKER = "广告";
     private static final String GATE_MARKER = "后可继续";
     private static final long TICK_MS = 600;
