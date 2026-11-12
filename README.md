@@ -17,7 +17,7 @@
 
 ## 下载
 
-前往 [Releases](../../releases) 下载最新 APK（如 `AutoScroll-v1.9.apk`）。
+前往 [Releases](../../releases) 下载最新 APK（如 `AutoScroll-v1.11.apk`）。
 
 ## 构建要求
 

@@ -48,7 +48,7 @@ public class AutoScrollService extends AccessibilityService {
 
     private static final String TAG = "AutoScroll";
     // 「下一集」在红果的播放器控件/选集面板里常驻，会误触发，不能当片尾信号
-    private static final String[] END_KEYWORDS = {"本集完", "本集已完", "下一话", "上滑继续"};
+    private static final String[] END_KEYWORDS = {"上滑继续看短剧", "上滑继续观看短剧"};
     private static final String AD_MARKER = "广告";
     private static final String GATE_MARKER = "后可继续";
     private static final long TICK_MS = 600;
@@ -93,7 +93,6 @@ public class AutoScrollService extends AccessibilityService {
     private long promptSince;
     private long lastPromptSeenAt;
     private long lastHiddenLogAt;
-    private boolean lastKeywordPresent;
     private boolean gateActive;
 
     private boolean debugEnabled;
@@ -482,7 +481,6 @@ public class AutoScrollService extends AccessibilityService {
         promptSince = 0;
         lastPromptSeenAt = 0;
         lastSmartSwipeAt = 0;
-        lastKeywordPresent = false;
         gateActive = false;
         lastAdPresent = false;
         adTapCount = 0;
@@ -601,14 +599,12 @@ public class AutoScrollService extends AccessibilityService {
             }
             if (promptSince != 0 && now - lastPromptSeenAt >= PROMPT_GRACE_MS) {
                 promptSince = 0;
-                lastKeywordPresent = false;
             }
             return;
         }
         lastPromptSeenAt = now;
         if (promptSince == 0) {
             promptSince = now;
-            lastKeywordPresent = true;
             log("keyword: " + hit + " @" + boundsText(scan.hitBounds) + " vis=" + scan.hitVisible);
         }
         if (now - promptSince < PROMPT_HOLD_MS) return;
@@ -618,7 +614,6 @@ public class AutoScrollService extends AccessibilityService {
 
         lastSmartSwipeAt = now;
         promptSince = 0;
-        lastKeywordPresent = false;
         swipeUp("smart");
     }
 
