@@ -15,7 +15,7 @@ public class RangeRulerView extends View {
     }
 
     private static final int MIN = 5;
-    private static final int MAX = 60;
+    private static final int MAX = 600;
 
     private final Paint tick = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -60,9 +60,9 @@ public class RangeRulerView extends View {
         float tickH = dp(18);
         float step = w / (MAX - MIN);
 
-        for (int s = MIN; s <= MAX; s++) {
+        for (int s = MIN; s <= MAX; s += 10) {
             float x = (s - MIN) * step;
-            boolean major = s % 5 == 0;
+            boolean major = s % 100 == 0;
             tick.setColor(major ? 0xFF555555 : 0xFF2E2E2E);
             canvas.drawLine(x, top, x, top + tickH, tick);
         }
@@ -74,10 +74,10 @@ public class RangeRulerView extends View {
         float baseline = h - dp(2);
         text.setTextAlign(Paint.Align.LEFT);
         canvas.drawText("5", 0, baseline, text);
-        text.setTextAlign(Paint.Align.LEFT);
-        canvas.drawText("25", (25 - MIN) * step, baseline, text);
+        text.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText("300", (300 - MIN) * step, baseline, text);
         text.setTextAlign(Paint.Align.RIGHT);
-        canvas.drawText("60", w, baseline, text);
+        canvas.drawText("600", w, baseline, text);
     }
 
     @Override

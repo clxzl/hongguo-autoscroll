@@ -63,7 +63,7 @@ public class BubbleView extends View {
             case AD:
                 return "等待广告，" + value + " 秒后尝试上滑，单击暂停";
             case OFFLINE:
-                return "未连接到红果短剧，单击查看提示";
+                return "自动上滑未开始，单击在当前应用开始";
             default:
                 return "自动上滑已暂停，单击开始";
         }

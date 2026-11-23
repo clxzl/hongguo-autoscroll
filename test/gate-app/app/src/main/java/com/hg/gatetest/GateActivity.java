@@ -25,6 +25,7 @@ public class GateActivity extends Activity {
     private TextView epView;
     private TextView metaView;
     private TextView hintView;
+    private TextView extraView;
     private int touchDowns;
     private int touchUps;
     private int scenario;
@@ -55,6 +56,11 @@ public class GateActivity extends Activity {
         root.addView(epView);
         root.addView(metaView, lp);
         root.addView(hintView, lp);
+        extraView = new TextView(this);
+        extraView.setTextColor(Color.WHITE);
+        extraView.setTextSize(22);
+        extraView.setGravity(Gravity.CENTER_HORIZONTAL);
+        root.addView(extraView, lp);
         setContentView(root);
         showPlaying();
 
@@ -75,6 +81,8 @@ public class GateActivity extends Activity {
         touchDowns = 0;
         touchUps = 0;
         scenario = id;
+        extraView.setText("");
+        hintView.setVisibility(View.VISIBLE);
         Log.i(TAG, "--- scenario " + id + " start; downs=" + touchDowns);
         switch (id) {
             case 1:
@@ -106,6 +114,12 @@ public class GateActivity extends Activity {
                 break;
             case 10:
                 s10();
+                break;
+            case 12:
+                s12();
+                break;
+            case 13:
+                s13();
                 break;
             default:
                 break;
@@ -238,6 +252,29 @@ public class GateActivity extends Activity {
         handler.postDelayed(this::done, 20000);
     }
 
+    /** 倒计时文案与片尾提示同时存在：只认提示，应立即滑走 */
+    private void s12() {
+        showPlaying();
+        handler.postDelayed(() -> {
+            Log.i(TAG, "s12 gate text + visible prompt");
+            hintView.setText("9秒后可继续上滑观看短剧");
+            extraView.setText("上滑继续观看短剧");
+        }, 3000);
+        handler.postDelayed(this::done, 18000);
+    }
+
+    /** 广告页只有「广告」「跳过广告」文案、没有片尾提示：8 秒后盲滑兜底 */
+    private void s13() {
+        showPlaying();
+        handler.postDelayed(() -> {
+            Log.i(TAG, "s13 ad text + skip text, no prompt");
+            epView.setText("第9集 | 3.0x");
+            metaView.setText("广告");
+            hintView.setText("跳过广告");
+        }, 3000);
+        handler.postDelayed(this::done, 22000);
+    }
+
     private void flicker(final int onMs, final int offMs) {
         if (scenario != 7 && scenario != 8) return;
         epView.setText("第9集 | 3.0x");
@@ -266,6 +303,7 @@ public class GateActivity extends Activity {
         epView.setText("第" + episode + "集 | 3.0x");
         metaView.setText("全屏观看 | 发弹幕");
         hintView.setText("");
+        extraView.setText("");
     }
 
     private void showPrompt() {
@@ -287,7 +325,7 @@ public class GateActivity extends Activity {
             touchUps++;
             Log.i(TAG, "touch up #" + touchUps);
             // 1/3/4 模拟滑动被页面接受：换到下一条视频
-            if (scenario == 1 || scenario == 3 || scenario == 4) {
+            if (scenario == 1 || scenario == 3 || scenario == 4 || scenario == 12) {
                 episode++;
                 Log.i(TAG, "page accepted swipe -> 第" + episode + "集");
                 showPlaying();

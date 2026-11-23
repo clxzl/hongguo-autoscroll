@@ -646,9 +646,11 @@ public class MainActivity extends Activity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                String v = s.toString();
-                if (!v.isEmpty() && Integer.parseInt(v) > 600) {
-                    s.replace(0, s.length(), "600");
+                try {
+                    if (Long.parseLong(s.toString()) > 600) {
+                        s.replace(0, s.length(), "600");
+                    }
+                } catch (NumberFormatException ignored) {
                 }
             }
         });
@@ -947,11 +949,20 @@ public class MainActivity extends Activity {
     }
 
     private boolean isAccessibilityEnabled() {
+        try {
+            if (Settings.Secure.getInt(getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED, 0) != 1) return false;
+        } catch (Exception e) {
+            return false;
+        }
         String enabled = Settings.Secure.getString(getContentResolver(),
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         if (enabled == null) return false;
         String me = getPackageName() + "/" + AutoScrollService.class.getName();
-        return enabled.contains(me);
+        for (String s : enabled.split(":")) {
+            if (s.equals(me)) return true;
+        }
+        return false;
     }
 
     private void openAccessibilitySettings() {

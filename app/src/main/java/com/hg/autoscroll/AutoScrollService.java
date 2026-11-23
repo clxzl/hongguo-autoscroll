@@ -48,9 +48,8 @@ public class AutoScrollService extends AccessibilityService {
 
     private static final String TAG = "AutoScroll";
     // 「下一集」在红果的播放器控件/选集面板里常驻，会误触发，不能当片尾信号
-    private static final String[] END_KEYWORDS = {"上滑继续看短剧", "上滑继续观看短剧"};
+    private static final String[] END_KEYWORDS = {"上滑继续"};
     private static final String AD_MARKER = "广告";
-    private static final String GATE_MARKER = "后可继续";
     private static final long TICK_MS = 600;
     private static final long UI_TICK_MS = 1000;
     private static final long PROMPT_HOLD_MS = 1200;
@@ -58,8 +57,7 @@ public class AutoScrollService extends AccessibilityService {
     private static final long SMART_MIN_GAP_MS = 10000;
     private static final long AD_MIN_GAP_MS = 4000;
     private static final long AD_BLIND_MS = 8000;
-    private static final long TAP_COOLDOWN_MS = 1200;
-    private static final int MAX_AD_TAPS = 6;
+    private static final long AD_HIDE_GRACE_MS = 2000;
 
     private static AutoScrollService instance;
 
@@ -93,13 +91,11 @@ public class AutoScrollService extends AccessibilityService {
     private long promptSince;
     private long lastPromptSeenAt;
     private long lastHiddenLogAt;
-    private boolean gateActive;
 
     private boolean debugEnabled;
     private boolean lastAdPresent;
     private long adFirstSeenAt;
-    private int adTapCount;
-    private long lastTapAt;
+    private long lastAdSeenAt;
     private String lastSnapshotText = "";
     private long lastSnapshotLogAt;
 
@@ -443,7 +439,8 @@ public class AutoScrollService extends AccessibilityService {
         }
         long now = System.currentTimeMillis();
         if (adEnabled && lastAdPresent) {
-            bubble.setState(BubbleView.State.AD, "AD");
+            long left = Math.max(0, (adFirstSeenAt + AD_BLIND_MS - now + 999) / 1000);
+            bubble.setState(BubbleView.State.AD, String.valueOf(left));
             return;
         }
         if (MODE_TIMER.equals(mode)) {
@@ -457,7 +454,7 @@ public class AutoScrollService extends AccessibilityService {
     private void toggleRunning() {
         if (running) {
             setRunning(false);
-            toast("自动下滑已停止");
+            toast("自动上滑已停止");
             updateBubbleState();
             return;
         }
@@ -471,7 +468,7 @@ public class AutoScrollService extends AccessibilityService {
         targetPackage = pkg;
         targetLabel = appLabel(pkg);
         setRunning(true);
-        toast("自动下滑已开启（" + (MODE_SMART.equals(mode) ? "智能" : "定时") + " · " + targetLabel + "）");
+        toast("自动上滑已开启（" + (MODE_SMART.equals(mode) ? "智能" : "定时") + " · " + targetLabel + "）");
         updateBubbleState();
     }
 
@@ -481,9 +478,9 @@ public class AutoScrollService extends AccessibilityService {
         promptSince = 0;
         lastPromptSeenAt = 0;
         lastSmartSwipeAt = 0;
-        gateActive = false;
         lastAdPresent = false;
-        adTapCount = 0;
+        adFirstSeenAt = 0;
+        lastAdSeenAt = 0;
         lastSnapshotText = "";
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
         if (running) {
@@ -534,45 +531,22 @@ public class AutoScrollService extends AccessibilityService {
         }
         if (scan.snapshot != null) logSnapshot(scan.snapshot.toString(), now);
 
-        // 倒计时广告（N 秒后可继续上滑）：这期间滑动会被吞掉，等它自己走完
-        if (scan.gate) {
-            if (!gateActive) {
-                gateActive = true;
-                log("gate detected");
-            }
-            if (lastAdPresent) {
-                lastAdPresent = false;
-                log("ad gone");
-            }
-            updateBubbleState();
-            return;
-        }
-        if (gateActive) {
-            gateActive = false;
-            log("gate completed");
-        }
-
+        // 已知广告页（可见短文案「广告」或「跳过广告」/「关闭广告」）：没有片尾提示时 8 秒后盲滑一次
         boolean adPage = adEnabled && scan.ad;
         if (adPage) {
+            lastAdSeenAt = now;
             if (!lastAdPresent) {
                 lastAdPresent = true;
-                adTapCount = 0;
                 adFirstSeenAt = now;
                 log("ad detected");
             }
-            if (scan.skipNode != null && adTapCount < MAX_AD_TAPS && now - lastTapAt >= TAP_COOLDOWN_MS) {
-                lastTapAt = now;
-                adTapCount++;
-                boolean ok = scan.skipNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                log("click skip(" + scan.skipText + ") " + (ok ? "ok" : "failed"));
-            } else if (scan.endHit == null && scan.skipNode == null
+            if (scan.endHit == null
                     && now - adFirstSeenAt >= AD_BLIND_MS
                     && (lastSmartSwipeAt == 0 || now - lastSmartSwipeAt >= SMART_MIN_GAP_MS)) {
-                // 广告页既没跳过也没提示：直接盲滑一次，免得卡在广告里
                 lastSmartSwipeAt = now;
                 swipeUp("ad");
             }
-        } else if (lastAdPresent) {
+        } else if (lastAdPresent && now - lastAdSeenAt >= AD_HIDE_GRACE_MS) {
             lastAdPresent = false;
             log("ad gone");
             if (MODE_TIMER.equals(mode)) nextTimerSwipeAt = now + intervalSec * 1000L;
@@ -605,11 +579,11 @@ public class AutoScrollService extends AccessibilityService {
         lastPromptSeenAt = now;
         if (promptSince == 0) {
             promptSince = now;
-            log("keyword: " + hit + " @" + boundsText(scan.hitBounds) + " vis=" + scan.hitVisible);
+            log("keyword: " + hit + " @" + boundsText(scan.hitBounds));
         }
         if (now - promptSince < PROMPT_HOLD_MS) return;
         // 广告页滑早了也没关系，可以早点离开；正片页则留足间隔，防止连滑跳集
-        long minGap = adPage ? AD_MIN_GAP_MS : SMART_MIN_GAP_MS;
+        long minGap = (adPage || lastAdPresent) ? AD_MIN_GAP_MS : SMART_MIN_GAP_MS;
         if (lastSmartSwipeAt != 0 && now - lastSmartSwipeAt < minGap) return;
 
         lastSmartSwipeAt = now;
@@ -620,13 +594,9 @@ public class AutoScrollService extends AccessibilityService {
     private static class ScanResult {
         String endHit;
         Rect hitBounds;
-        boolean hitVisible;
         String hiddenHit;
         Rect hiddenBounds;
         boolean ad;
-        boolean gate;
-        AccessibilityNodeInfo skipNode;
-        String skipText;
         StringBuilder snapshot;
     }
 
@@ -636,31 +606,25 @@ public class AutoScrollService extends AccessibilityService {
         CharSequence desc = node.getContentDescription();
         String t = text == null ? null : text.toString();
         String d = desc == null ? null : desc.toString();
+        boolean vis = node.isVisibleToUser();
 
-        if (out.endHit == null && (matchKeyword(t) || matchKeyword(d))) {
-            String s = matchKeyword(t) ? t : d;
-            if (node.isVisibleToUser()) {
-                out.endHit = s;
-                out.hitBounds = new Rect();
-                node.getBoundsInScreen(out.hitBounds);
-                out.hitVisible = true;
-            } else if (out.hiddenHit == null) {
-                out.hiddenHit = s;
-                out.hiddenBounds = new Rect();
-                node.getBoundsInScreen(out.hiddenBounds);
+        if (out.endHit == null) {
+            String s = matchKeyword(t) ? t : (matchKeyword(d) ? d : null);
+            if (s != null) {
+                if (vis) {
+                    out.endHit = s;
+                    out.hitBounds = new Rect();
+                    node.getBoundsInScreen(out.hitBounds);
+                } else if (out.hiddenHit == null) {
+                    out.hiddenHit = s;
+                    out.hiddenBounds = new Rect();
+                    node.getBoundsInScreen(out.hiddenBounds);
+                }
             }
         }
-        if (!out.ad && ((t != null && t.contains(AD_MARKER)) || (d != null && d.contains(AD_MARKER)))) {
+        if (!out.ad && vis && (isAdText(t) || isAdText(d) || isSkipText(t) || isSkipText(d))) {
             out.ad = true;
         }
-        if (!out.gate && ((t != null && t.contains(GATE_MARKER)) || (d != null && d.contains(GATE_MARKER)))) {
-            out.gate = true;
-        }
-        if (out.skipText == null) {
-            checkSkipNode(node, t, out);
-            if (out.skipText == null) checkSkipNode(node, d, out);
-        }
-        if (out.skipText != null) out.ad = true;
         if (out.snapshot != null && t != null && out.snapshot.length() < 1200) {
             out.snapshot.append(t).append(" | ");
         }
@@ -671,44 +635,39 @@ public class AutoScrollService extends AccessibilityService {
         }
     }
 
-    private void checkSkipNode(AccessibilityNodeInfo node, String text, ScanResult out) {
-        if (!isSkipText(text) || !node.isVisibleToUser()) return;
-        AccessibilityNodeInfo target = findClickable(node, 4);
-        if (target == null) return;
-        Rect bounds = new Rect();
-        node.getBoundsInScreen(bounds);
-        int area = bounds.width() * bounds.height();
-        if (area <= 0) return;
-        if (out.skipNode != null) {
-            Rect old = new Rect();
-            out.skipNode.getBoundsInScreen(old);
-            if (area >= old.width() * old.height()) return;
-        }
-        out.skipNode = target;
-        out.skipText = text;
-    }
-
-    private AccessibilityNodeInfo findClickable(AccessibilityNodeInfo node, int maxUp) {
-        AccessibilityNodeInfo cur = node;
-        for (int i = 0; i <= maxUp && cur != null; i++) {
-            if (cur.isClickable()) return cur;
-            cur = cur.getParent();
-        }
-        return null;
+    // 只认短文案，避免剧名/简介里出现「广告」二字就盲滑
+    private boolean isAdText(String text) {
+        if (text == null) return false;
+        String n = squash(text);
+        return n.startsWith(AD_MARKER) && n.length() <= 5;
     }
 
     private boolean isSkipText(String text) {
         if (text == null) return false;
         if (text.contains("片头")) return false;
-        return text.contains("跳过") || text.contains("关闭广告");
+        return text.contains("跳过广告") || text.contains("关闭广告");
     }
 
     private boolean matchKeyword(String text) {
         if (text == null) return false;
+        String n = squash(text);
         for (String k : END_KEYWORDS) {
-            if (text.contains(k)) return true;
+            if (n.contains(k)) return true;
         }
         return false;
+    }
+
+    // 红果有时把提示拆到带换行/空格的节点里，去掉空白再比对
+    private String squash(String s) {
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isWhitespace(c)
+                    && c != '\u3000' && c != '\u00A0' && c != '\u200B' && c != '\uFEFF') {
+                b.append(c);
+            }
+        }
+        return b.toString();
     }
 
     private String boundsText(Rect b) {
